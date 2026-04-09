@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        // 🔴 APNA FIREBASE CONFIG (PEHLE SE SET HAI)
+        const firebaseConfig = {
+            apiKey: "AIzaSyB1yd1UuPWKrggxuJX45-vAm8xvwBhy418",
+            authDomain: "school-attendance-system-8b308.firebaseapp.com",
+            projectId: "school-attendance-system-8b308",
+            storageBucket: "school-attendance-system-8b308.firebasestorage.app",
+            messagingSenderId: "397547880065",
+            appId: "1:397547880065:web:4cedfe5a926875152d1780"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 🔹 Cloud save function
+        window.saveAttendanceToCloud = async (classVal, section, dateStr, records) => {
+            try {
+                const docId = `${classVal}_${section}_${dateStr}`;
+                const docRef = doc(db, "attendance", docId);
+                await setDoc(docRef, {
+                    class: classVal,
+                    section: section,
+                    date: dateStr,
+                    records: records,
+                    updatedAt: new Date().toISOString()
+                });
+                console.log(`✅ Saved to cloud: ${docId}`);
+                return true;
+            } catch (error) {
+                console.error("❌ Cloud save error:", error);
+                alert("Cloud save failed. Check console.");
+                return false;
+            }
+        };
+
+        // 🔹 Cloud load function
+        window.loadAttendanceFromCloud = async (classVal, section, dateStr) => {
+            try {
+                const docId = `${classVal}_${section}_${dateStr}`;
+                const docRef = doc(db, "attendance", docId);
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    console.log(`📥 Loaded from cloud: ${docId}`);
+                    return snap.data().records;
+                }
+                return null;
+            } catch (error) {
+                console.error("❌ Cloud load error:", error);
+                return null;
+            }
+        };
+
+        // 🔹 Fetch ALL records for export
+        window.exportAllFromCloud = async () => {
+            try {
+                const querySnapshot = await getDocs(collection(db, "attendance"));
+                const allRecords = [];
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const { class: cls, section: sec, date, records } = data;
+                    allRecords.push({ class: cls, section: sec, date, records });
+                });
+                console.log(`📊 Fetched ${allRecords.length} attendance documents from cloud`);
+                return allRecords;
+            } catch (error) {
+                console.error("❌ Export all error:", error);
+                return [];
+            }
+        };
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>School Attendance System | Firebase Cloud | Export CSV</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f2b3d 0%, #1b4f6e 100%);
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+
+        .app-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.96);
+            border-radius: 1.8rem;
+            box-shadow: 0 30px 50px rgba(0,0,0,0.3);
+            overflow: hidden;
+            padding: 1.5rem 2rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            color: #0a2f44;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 3px solid #1e6f5c;
+            padding-bottom: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .badge {
+            background: #1e6f5c;
+            color: white;
+            padding: 0.3rem 1.2rem;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .filter-panel {
+            background: #f0f7fa;
+            border-radius: 1.2rem;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 1.8rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-weight: 700;
+            color: #0a3b4b;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 0.7rem 0.9rem;
+            border-radius: 1rem;
+            border: 1px solid #cbdbe2;
+            background: white;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #1e6f5c;
+            box-shadow: 0 0 0 3px rgba(30,111,92,0.2);
+        }
+
+        .btn {
+            background: #1e6f5c;
+            border: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn-secondary {
+            background: #2c5f8a;
+        }
+
+        .btn-excel {
+            background: #1f7b4d;
+            border: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .btn-excel:hover {
+            background: #0e5a3a;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: white;
+            border: 1px solid #1e6f5c;
+            color: #1e6f5c;
+        }
+
+        .btn-outline:hover {
+            background: #e0f2ef;
+            transform: translateY(-1px);
+        }
+
+        .btn:hover {
+            background: #0e5545;
+            transform: translateY(-2px);
+        }
+
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 1.2rem;
+            background: #eef3f5;
+            padding: 0.8rem 1rem;
+            border-radius: 1rem;
+        }
+
+        .export-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: #e8f0f3;
+            padding: 0.6rem 1rem;
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 1.2rem;
+            background: white;
+            box-shadow: 0 5px 18px rgba(0,0,0,0.08);
+            max-height: 65vh;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            min-width: 600px;
+        }
+
+        th {
+            background: #0a2f44;
+            color: white;
+            padding: 0.9rem 0.6rem;
+            text-align: left;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 0.7rem 0.6rem;
+            border-bottom: 1px solid #e2edf2;
+            vertical-align: middle;
+        }
+
+        tr:hover {
+            background: #f9fefc;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .present { background: #c8f0d1; color: #0a4b2a; }
+        .absent { background: #ffe0db; color: #b13e3e; }
+        .late { background: #fff3c9; color: #a6680e; }
+
+        .status-select {
+            padding: 0.4rem 0.6rem;
+            border-radius: 2rem;
+            border: 1px solid #bcd0d9;
+            background: white;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .summary-card {
+            background: #e2f0f5;
+            border-radius: 1rem;
+            padding: 0.8rem 1.2rem;
+            margin-top: 1.2rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .record-status {
+            color: #155f6b;
+            background: #d9f0f0;
+            padding: 0.3rem 0.9rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+        }
+
+        .quick-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 780px) {
+            .app-container { padding: 1rem; }
+            th, td { padding: 0.5rem 0.3rem; font-size: 0.75rem; }
+            .status-select { padding: 0.2rem 0.4rem; font-size: 0.7rem; }
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.7rem;
+            color: #2c6e6e;
+        }
+
+        .custom-badge {
+            background: #e67e22;
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            margin-left: 8px;
+        }
+
+        .empty-badge {
+            background: #95a5a6;
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            margin-left: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <h1>
+        🏫 Complete School Attendance System
+        <span class="badge">Class 5–10 | Sections A & B | DEFAULT: ABSENT</span>
+    </h1>
+
+    <div class="filter-panel">
+        <div class="filter-group">
+            <label>📖 Class</label>
+            <select id="classSelect">
+                <option value="5">Class 5</option>
+                <option value="6">Class 6</option>
+                <option value="7">Class 7</option>
+                <option value="8">Class 8</option>
+                <option value="9">Class 9</option>
+                <option value="10">Class 10</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>🔤 Section</label>
+            <select id="sectionSelect">
+                <option value="A">Section A</option>
+                <option value="B">Section B</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>📅 Date</label>
+            <input type="date" id="attendanceDate">
+        </div>
+        <div class="filter-group">
+            <label>&nbsp;</label>
+            <button id="loadAttendanceBtn" class="btn">🔄 Load / Refresh</button>
+        </div>
+        <div class="filter-group">
+            <label>&nbsp;</label>
+            <button id="saveAllBtn" class="btn btn-secondary">💾 Save Record</button>
+        </div>
+    </div>
+
+    <!-- Export Section -->
+    <div class="export-bar">
+        <span style="font-weight:600;">📁 Backup & Export:</span>
+        <button id="exportCurrentBtn" class="btn-excel">📎 Export Current Class (CSV)</button>
+        <button id="exportAllBtn" class="btn-excel">📊 Export ALL Records (All Classes/Dates)</button>
+        <span style="font-size:0.7rem; color:#2c6e6e;">↓ Downloads as Excel/CSV file</span>
+    </div>
+
+    <div class="action-bar">
+        <div><strong>👩‍🎓 Student Roll List</strong> <span id="classSectionLabel">Class 5 - A</span> <span id="customIndicator" class="custom-badge" style="display:none;"></span><span id="emptyIndicator" class="empty-badge" style="display:none;">🚫 No Students</span></div>
+        <div id="bulkActions">
+            <button id="markAllPresent" class="btn-outline" style="margin-right: 8px;">✅ All Present</button>
+            <button id="markAllAbsent" class="btn-outline">❌ All Absent</button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="studentTable">
+            <thead>
+                <tr><th>Roll No</th><th>Student Name</th><th>Attendance Status</th><th>Update Status</th></tr>
+            </thead>
+            <tbody id="studentTableBody">
+                <tr><td colspan="4" style="text-align:center; padding: 2rem;">Select class & section and click Load</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="summary-card">
+        <div class="quick-stats">
+            <span>📊 <span id="presentCount">0</span> Present</span>
+            <span>⚠️ <span id="absentCount">0</span> Absent</span>
+            <span>⏰ <span id="lateCount">0</span> Late</span>
+            <span>👥 Total: <span id="totalCount">0</span></span>
+        </div>
+        <div id="recordStatusMsg" class="record-status">📌 Default: All students ABSENT. Change status using dropdown.</div>
+    </div>
+    <div class="footer-note">
+        ✅ Cloud Firestore + Local Backup | <strong style="color:#b13e3e;">DEFAULT ATTENDANCE: ABSENT for EVERY student</strong> | Export to CSV/Excel
+    </div>
+</div>
+
+<script>
+    // ======================== ALL CUSTOM STUDENT LISTS ========================
+    const CLASS5A_NAMES = ["SHADMURTAZA", "SK MUDASSAR HASAN", "EBRAHIM KHAN", "AARAB KHAN", "YUSUF KHAN", "MD WASIM", "HASAN KHAN", "MD SANZAR", "MD UZAIR QURAISHI", "TABREZ ALAM", "AJMAT RAHMAN", "MD. SIBTAIN RAZA ALI", "ANAS ABBAS", "ALMAS TABISH", "MD ALI FAISAL", "AAQUIB ZAHEDI", "HUZAIFA HAIDER", "MD.RAUNAK ALAM", "MD ASHRAF MANSURI", "KHALIL UR RAHMAN", "MD SAIFAN GUL", "ZEESHAN KHAN"];
+    const CLASS5B_NAMES = [];
+    const CLASS6A_NAMES = ["MD REHAN FARID", "OZAIR REZA", "AYAN KHAN", "MD AATIF ANSARI", "IRFAN ANSARI", "MD AYAAN", "ASHIQUE SK", "SARTAJ HUSSAIN", "ASHIQUE KHAN", "ASAD KHAN", "MD KABIR ANSARI", "MD ARIF", "ANAS SIDDIQUE", "AAHIL ANSARI", "MD TABREZ", "ZISHAN KHAN", "MD AHIL KHAN", "MD MASHUD ALAM", "IZZAZ KHAN", "RUSTAM KHAN", "ALI IMAM", "SAMAR QUARESHI", "MD MOSHAHID HUSSAIN", "MD ATIF", "MD AFHAM", "MD WAHEED", "SK ISMAIL", "MD WARIS", "ALEMIN SK", "HAMZAH MUMTAZ", "ASAD KHERESHI", "MD TASIN ANSARI", "REHAN SHAH", "MD REHAN ANSARI", "MD RAHIM KHAN", "ARMAN", "MD ARHAM ANSARI", "MD ASADALI KHAN", "MD SAKIB QURESHI", "TABARAK MANSURI", "NAWAZISH EKRAM", "MD FARHAN ANSARI", "BITTU SHAKE"];
+    const CLASS6B_NAMES = ["MOBASSIR TANWEER", "MOHAMMAD HAZIB", "SAIFALI SHA", "MOHAMMAD WASIM", "MD JAHID KHAN", "MD REYAZ", "MD IRFAN ANSARI", "MD SOHAIL", "SYED SAIF HUSSAIN", "AAWED ANSARI", "SK AHMAD RAZA", "MD NASIRUDDIN", "MD. JUNED ANSARI", "SUFIYAN SEIKH", "MD SHAHJADA", "MD IMRAN ANSARI", "SK MD ZAHIRUL HASAN", "MD FARHAN QURAISHI", "MOHAMMAD HUSSAIN SEKH", "AAUS SEKH", "EKRAM KHAN", "AAMISH HAYAT", "MD SAHEB", "AHMED QURESHI", "MD TAUHID KHAN", "HABIBUL KHAN", "ALI SHAH", "MD. SHAHID ALAM", "ZEESHAN KHAN", "FARDEEN KHAN", "MD.SHABBAR ALAM", "IZTEBA ZIAUDDDIN", "MD SAMIR", "MD AHIL KHAN", "TASEEL ANWAR", "MD TAYYAB", "FAZLUR RAHMAN", "MD FARHAN", "SAHID SK", "MD ALTAMAS ANSARI"];
+    const CLASS7A_NAMES = ["MD AJIL ANSARI", "MD DILSAN KHAN", "MD JUNED KHAN", "TAUSIF RAZA", "SK SOHEB", "ARIFE ANSARI", "SHAMSHAD ALAM", "MD AATIF TAUFIQUE", "REHAN SK", "MD SAAD QUAMAR", "MD REHAN SK", "SAHIL", "SEKH ASAD EQBAL", "SK SABIR", "ABESH SEKH", "UBAID KHALID", "KARIM KHAN", "MD BASIM", "REHAN ANSARI", "SK REHAN", "MD RAJAB", "MD DANIYAL", "MD SAHBAJ ANSARI", "RAHAMAT HUSSAIN", "MD ASIF", "MD AYAN KHAN", "MD UMAR MANSOORI", "MD SHAHID", "MD SAHIL", "IBRAHIM SHA", "HAMMAD SAJID", "MD OWAIS MUSTAFA", "ZIAUL NABI", "MD FAIZAN", "SAIYAD NAZIR", "MD IFTEKHAR ALAM", "JUNAID KHAN ALIES MD JUNAID KHAN", "DILJAN SEKH", "HUNAIN ZUBAIR", "ARSHAD KHAN", "SOHAIL ANSARI", "SAKIR KHAN", "FARHAN KHAN", "AYAIN KHAN", "MD FARHAN ALI", "IRFAN KHAN"];
+    const CLASS7B_NAMES = ["MOHAMMAD UMAR", "MD AYAAN ANSARI", "AHMAD RAZA SIDDIQUE", "SOHEL KHAN", "MD JAHID", "MD AHTASAM", "MD AFFAN", "AREEB HAYAT AHMAD", "MD SAHANSHA KHAN", "MD TANWEER HUSSAIN", "HOSSEN ANSARI", "ADNAN QURAISHI", "MD WASIM ANSARI", "KABIR ALAM", "IRFAN MUNNA KHAN", "MD RAHAMAT ALI", "MD AYAN KHAN", "RAJA", "MD JISHAN QUARAISHI", "MD ARBAZ SHAH", "SAMSHUL ANSARI", "MD REHAN KHAN", "ALFAAZ SHAH", "SHADAB SAH", "MD FARMAN SHAH", "MD ALTAIF", "MD NOOR HASSAN", "MD ARSHAD KHAN", "ABU HUZIFA", "MD ARMAN", "SARFARAZ ANSARI", "MD. TAHA TOFAIL", "MD ALISAN", "MD FAIZ ANSARI", "MD ASAD", "MD .HANZALA SUFIYAN", "BILAL ANSARI", "MD UJER ALI", "MD AYAAN SAYEEDI", "AAMIR SHA", "GULAM GOUSH", "MD SHAHZAIB ALAM", "AYAN ALAM", "MD AHMED RAZA"];
+    const CLASS8A_NAMES = ["RIZWAN ANSARI", "HANJALA KHAN", "MD ARSHAD WARSI", "REHAN SAH", "MD ASAD ANSARI", "MD ABDUL ZAID AKHTER", "TANZEER ATYAB FAHMI", "MD FARHAN KHAN", "SAHNAWAJ ANSARI", "UMAR FIROZ", "IMRAN MANSURI", "MD FARHAN", "SHAN KHAN", "KAMRAN QURAISHI", "MD KAIF ANSARI", "FAZAR ANSARI", "MD ASAD", "MD SARFARAZ", "ASAD AHMED ANSARI", "BELAL NAIYAR", "ANISH SEKH", "ANAS IQBAL", "MD SAYEED KHAN", "FAZAL SHA", "MD FAIZAN NAWAJ KHAN", "MD ALTAMASH", "MD IRSHAD KHAN", "IBRAHIM HASSAN", "MD IRFAN KHAN", "MD RABNAWAZ", "SK MOHD IRFAN", "MD ARSHAD KHAN", "AYAN KHAN", "ATIF QURASHI", "AHEM KURESHI", "MD EJAZ", "REHAN SHA", "MD AFIYAN ALI", "SK ASHIQUE", "ALI SK", "AMAN KHAN", "SONU SEKH", "MD. ARIF", "MD NAZISH RAZA", "ZAHID SHA", "MD GUFRAN", "MD ZASIMUDDIN HUSSAIN", "MEHRAB KHAN", "NISHAN", "MD SADDAR", "AZHAN SIDDIQUEE", "MD SHAMSAD KHAN", "MD AYAN", "SADDAB KHAN", "AYAN KHAN"];
+    const CLASS8B_NAMES = ["ABDUL RAHAMAN", "MD ATIQUE UR RAHMANI", "RAHAMAT KHAN", "MD ARMAN", "FARAZ KHAN", "FAISAL KHAN", "ANIS SEKH", "EBRAN KHAN", "SK ZIYA HASAN", "SAJAD KHAN", "MD HASNAIN", "MD SARFARAZ ALAM", "CHAND SHEIKH", "SYED SAAD HUSSAIN", "IMRAN KHAN", "MD AYAIN", "MD SHAHBAZ KHAN", "MD KAIEF MANSURI", "MUKARRIB SIDDQUE", "MD ARIF KHAN", "MD AZHAR", "RAHIM MANSOORI", "FIRDOUS KHAN", "MD NADEEM ANSARI", "TAUSIF ANSARI", "FAIJAN QURAISHI", "MD AIYAN REZA", "MD NISAR ANSARI", "ARMAN SEKH", "KHAIRUDDIN ANSARI", "MD ALTAMAS SAH", "SK SAMIRUDDIN", "MD NAUSHAD SHA", "ISLAM KHAN", "MD SHAMSUL ALAM SK.", "MD ARHAN SHAKIL", "SK REZWAN", "ISMILE KHAN", "ABHIJAAN RAHMAAN", "ATIF KHAN", "REHAN MOHAMMAD", "ARIZ ARSY", "MD KAMRUDDIN", "MOHAMMAD ARSH", "MD IMTIYAZ", "MD SAHIL", "MD FAIZANUDDIN", "SAMIUDDIN HUSSAIN", "MD DILJAN", "MD ASAD ALAM", "ZEESHAN", "AHAD REYAN", "NIYAZ KHAN", "MD TAAZ KHAN", "KHURSHID ALAM", "MD REHAN", "MD HASSAAN HASSAN"];
+    const CLASS9A_NAMES = ["MD ZAID QURAISHI", "AZHAN SHAHID", "MD OMAIR", "MD KAMRAN", "SARFARAZ KHAN", "MD KAISAR", "MD ADDIL RASHID", "AYAN KHAN", "MD ATIF KHAN", "MD AKBAR KHAN", "ANZAFUDDIN", "ADEE YOUSUF", "MD ZAHID KHAN", "MD IMAN SAIYAD", "EQTEDAR AHMAD", "MD ATHAR ALAM", "MD ZUNAID RAZA", "ROUSAN KHAN", "MOHAMMAD ANSARI", "MD MAZHAN ISLAM", "SUFIAN KHAN", "MD DANISH KHAN", "MD ISTIAQUE ALAM", "MD ALI RAZA", "AFAAN AHMAD KHAN", "KAMRAN ALI SHA", "MD MOHSIN HUSSAIN", "WASIM SHEIKH", "PARBEZ ALAM", "MD EZAZ RIZWAN", "SK. ARMAN", "MD YAQUB KHAN", "MD. KAIF ANSARI", "MD ABBAS KHAN", "ZAHID KHAN", "SK ARYAN ALI", "MD ALI", "DANISH KHAN", "MD RIZWAN ANSARI", "SELIM KHAN", "MD RAHMAN", "AKBAR ALI", "BELAL KHAN", "MD SAHKIR KHAN", "MD ARBAZ", "PINTU SK", "MD REHAN", "RIZWAN KHAN", "MD SHAHZADA ANSARI", "AFFAN RAZA", "SK RAJA", "MD AMAN", "SEKH ARMAN", "JABADE SHA", "MD IRFAN", "MD IBRAN", "GULFAM ANSARI", "AYAN AKHTAR", "MD FARID", "SK KAMAL", "AMIR KHAN", "MD JUNED ANSARI", "AMAN SK", "MD TOFIAK", "TANISHA ANAM", "ARBAZ SHA", "MD YUSUF"];
+    const CLASS9B_NAMES = ["MD AAMIR KHAN", "SABIL ADAN ANSARI", "MD MIZAN ANSARI", "MD SAUBAN ABDULLAH", "MD ASAD", "MD ZAID", "MD WASIM", "MD ISLAM", "MD ARIYAN KHAN", "MD JISHAN", "MEHTAB SHAH", "MD. SHAN ANSARI", "AKHIR KHAN", "FARID ANSARI", "MD MURSALEEM", "ABDULLA ANSARI", "MD KAMIL KHAN", "MD SABIR KHAN", "MD REHAN", "AMIR SEKH", "ABTAB SEKH", "LARAIB ARFIN", "EZAZ KHAN", "AFSAR SHAH", "SHAHID KHAN", "FAZAR KHAN", "MD REHAN ALAM", "SEKH SANFARAJ ALAM", "MD AYAN QURAISHI", "IRSHAD SK", "MD SAQIB AFZAL", "MOHAMMAD ISTAK KHAN", "MD ANISH", "MD SAHIL", "ARSHAD ALI", "MD TAUFIQUE KHAN", "MASAB SIDDIQUI", "FARDIN KHAN", "MD HASAN", "ASGAR HUSSAIN", "RAJA KHAN", "MD SOHAIL KHAN", "SHAHID KHAN", "REHAN ANSARI", "MD SAZAD ANSARI", "SALAM SEKH", "ANMOOL ALAM", "MOHD FARHAD", "NAFEES MANSOORI", "NOOR BASHAR", "MD AZHAR", "MD NADIM ANSARI", "NASIB HUSSAIN", "MD CHOTU", "ASHFAQUE KHAN", "FAIZAN QURESHI", "MD SAGIR", "AWESH RAZA AKHTER", "MD OSIM", "MD TAHSIM", "HASIBUL SK", "SARFARZ ALAM", "MD ARSALAN KHAN", "SALAR RASEEN", "MD AFROZ"];
+    const CLASS10A_NAMES = ["SEIKH AMEER HAMZAH", "MD SUFIAN", "MD SAHZADA", "MD ZULFIKAR", "ARMAN SIDDIQUI", "MD RIZWAN", "MD SAIYAD REHAN", "AHMAD RAJA QADRI", "MD SALMAN ANSARI", "NAZIR ANSARI", "MD NASIR", "MOSTAKIM KHAN", "MD ALTAMAS", "MD ALI HUSSAIN", "MD ARIS", "SEKH REHAN", "MD RIZWAN QURAISHI", "SIDDIQUE ALI", "AMAN ALAM", "MD FARHAN", "MD IMRAN KHAN", "MOHAMMAD SHAMSHER", "MD SHABAN HOQUE", "ASHFAQUE", "ALTAMAS ANSARI", "MD RIZWAN", "HASNAN SK", "MD AFZAL", "MD IMRAN", "MD SHARIQUE ANSARI", "MD AARIF ALAM", "MD TOUKIR SHAH", "SK KHURSHID", "ARMAN ANSARI", "MD AHASAN", "MD ABDUL SHARIQUE", "AABID RAZA", "MD DILJAN SEKH", "AAISH RAJA KHAN", "MD FAIZAN KHAN", "MD AJMAT ANSARI", "AKIB SHAH", "SK AESHAN", "MD SAHADAT", "MD DISHAN KHAN", "ALI SEKH"];
+    const CLASS10B_NAMES = ["MD ALAM", "AKIB RAJA", "SAQUIB HUSSAIN QURESHI", "FARHAN SALIM", "AQDUSH HAMZA SAIF", "MD FARHAN ANSARI", "SHEIKH AHMAD MEEZAN", "ARKAM IQBAL", "MD SUJJAN", "MD SALMAN", "MD SOHIL KHAN", "MD IRFAN", "ANAS RAZA", "HAMZA MAZ", "MD JUNAID", "FAIZAN KHAN", "AYMAAN AL SULAIMAN", "MD SAMIM", "MUZAHID KHAN", "AAMAN AHMED", "MD SAHEB ANSARI", "MD GHULAM MOHIUDDIN", "MD ALI HUSSAIN", "MD TANVEER KHAN", "ISLAM KHAN", "ARSALAN QURESHI", "IMRAN SK", "ANNOOR RASHID", "MD AFZAL KHAN", "MD ARHAN", "MOINUDDIN AJMARI", "ASHRAFUL HAQUE", "MD SAHIL ANSARI", "AHMED QURAISHI", "FARHAN RAZA", "MD MOKIM", "MD MUBARAK", "MD ADEEL", "MD ARMAN KHAN", "ATHAR ALI KHAN", "MUHAMMAD JUNAID", "NEHAL SHA", "MD NISAR KHAN", "MD JISHAN ANSARI", "ZAMEER SEIKH", "MD ABYAZ SARWAR", "MD ALTAMAS", "MD DILSHAD KHAN", "MD SUBHAN", "MD TANZIL FIROZ", "MD IRFAN ALAM", "MD AYAZ", "MD NOMAN ABDULLAH", "MD ABDUL RAHMAN", "GULAM FARID ALAM", "MD SK TOHID", "GULAB ALI KHAN", "MD ALI HUSSAIN", "SUHAIL", "MD SARFARAZ SHA", "MD TAHIR", "SOHEL SHAH", "ADIL AHMAD", "SEKH SAJID ALI", "NASRIN KHATOON", "ASHIYA PARWEEN", "SANU ANSARI"];
+
+    function getStudentList(classValue, section) {
+        const key = `${classValue}_${section}`;
+        const lists = { "5_A": CLASS5A_NAMES, "5_B": CLASS5B_NAMES, "6_A": CLASS6A_NAMES, "6_B": CLASS6B_NAMES, "7_A": CLASS7A_NAMES, "7_B": CLASS7B_NAMES, "8_A": CLASS8A_NAMES, "8_B": CLASS8B_NAMES, "9_A": CLASS9A_NAMES, "9_B": CLASS9B_NAMES, "10_A": CLASS10A_NAMES, "10_B": CLASS10B_NAMES };
+        const nameList = lists[key] || [];
+        return nameList.map((name, idx) => ({ rollNo: idx + 1, name, class: classValue, section }));
+    }
+
+    function getStorageKey(classVal, section, dateStr) { return `att_${classVal}_${section}_${dateStr}`; }
+    
+    // 🔹 Save to cloud + localStorage backup
+    async function saveAttendanceRecord(classVal, section, dateStr, attendanceMap) {
+        const cloudSuccess = await window.saveAttendanceToCloud(classVal, section, dateStr, attendanceMap);
+        localStorage.setItem(getStorageKey(classVal, section, dateStr), JSON.stringify({ 
+            date: dateStr, class: classVal, section: section, records: attendanceMap, updatedAt: new Date().toISOString() 
+        }));
+        return cloudSuccess;
+    }
+
+    // 🔹 Try cloud first, fallback to localStorage
+    async function loadAttendanceRecord(classVal, section, dateStr) {
+        const cloudRecords = await window.loadAttendanceFromCloud(classVal, section, dateStr);
+        if (cloudRecords) return cloudRecords;
+        const raw = localStorage.getItem(getStorageKey(classVal, section, dateStr));
+        return raw ? JSON.parse(raw).records : null;
+    }
+
+    function getTodayDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+
+    let currentStudents = [], currentAttendanceMap = {}, currentClass = "5", currentSection = "A", currentDate = "";
+    const classSelect = document.getElementById('classSelect'), sectionSelect = document.getElementById('sectionSelect'), attendanceDateInput = document.getElementById('attendanceDate');
+    const loadBtn = document.getElementById('loadAttendanceBtn'), saveBtn = document.getElementById('saveAllBtn'), studentTableBody = document.getElementById('studentTableBody');
+    const classSectionLabel = document.getElementById('classSectionLabel'), customIndicator = document.getElementById('customIndicator'), emptyIndicator = document.getElementById('emptyIndicator');
+    const presentSpan = document.getElementById('presentCount'), absentSpan = document.getElementById('absentCount'), lateSpan = document.getElementById('lateCount'), totalSpan = document.getElementById('totalCount');
+    const recordStatusMsg = document.getElementById('recordStatusMsg'), markAllPresentBtn = document.getElementById('markAllPresent'), markAllAbsentBtn = document.getElementById('markAllAbsent');
+    const exportCurrentBtn = document.getElementById('exportCurrentBtn'), exportAllBtn = document.getElementById('exportAllBtn');
+
+    function updateSummary() {
+        if (!currentStudents.length) { presentSpan.innerText = absentSpan.innerText = lateSpan.innerText = totalSpan.innerText = '0'; return; }
+        let p=0,a=0,l=0;
+        for(let s of currentStudents) { let st = currentAttendanceMap[s.rollNo.toString()] || 'absent'; if(st==='present') p++; else if(st==='absent') a++; else l++; }
+        presentSpan.innerText = p; absentSpan.innerText = a; lateSpan.innerText = l; totalSpan.innerText = currentStudents.length;
+        recordStatusMsg.innerHTML = localStorage.getItem(getStorageKey(currentClass, currentSection, currentDate)) ? `✅ Saved record exists for ${currentDate}` : `📝 Default: ${currentStudents.length} students ABSENT. Click Save.`;
+    }
+
+    function renderTable() {
+        if (!currentStudents.length) { studentTableBody.innerHTML = `<tr><td colspan="4" class="empty-state">🚫 No students</td></tr>`; updateSummary(); return; }
+        let html = '';
+        for(let s of currentStudents) {
+            let status = currentAttendanceMap[s.rollNo.toString()] || 'absent';
+            let cls = status==='present'?'present':status==='absent'?'absent':'late';
+            let disp = status==='present'?'✅ Present':status==='absent'?'❌ Absent':'⏰ Late';
+            html += `<tr><td>${s.rollNo}</td><td>${escapeHtml(s.name)}</td><td><span class="status-badge ${cls}">${disp}</span></td>
+            <td><select class="status-select" data-roll="${s.rollNo}"><option value="present" ${status==='present'?'selected':''}>Present</option><option value="absent" ${status==='absent'?'selected':''}>Absent</option><option value="late" ${status==='late'?'selected':''}>Late</option></select></td></tr>`;
+        }
+        studentTableBody.innerHTML = html;
+        document.querySelectorAll('.status-select').forEach(sel => sel.addEventListener('change', (e) => { currentAttendanceMap[e.target.dataset.roll] = e.target.value; renderTable(); }));
+        updateSummary();
+    }
+
+    function escapeHtml(str) { return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+    async function loadFullAttendance() {
+        currentClass = classSelect.value; currentSection = sectionSelect.value;
+        currentDate = attendanceDateInput.value || getTodayDate(); attendanceDateInput.value = currentDate;
+        let cnt = getStudentList(parseInt(currentClass), currentSection).length;
+        if(currentClass==='5' && currentSection==='B') { emptyIndicator.style.display='inline-block'; customIndicator.style.display='none'; classSectionLabel.innerText = `Class 5-B (No students) | ${currentDate}`; }
+        else { customIndicator.style.display='inline-block'; customIndicator.textContent=`📋 ${cnt} Students`; emptyIndicator.style.display='none'; classSectionLabel.innerText = `Class ${currentClass}-${currentSection} (${cnt} students) | ${currentDate}`; }
+        currentStudents = getStudentList(parseInt(currentClass), currentSection);
+        if(!currentStudents.length) { currentAttendanceMap={}; renderTable(); return; }
+        let stored = await loadAttendanceRecord(currentClass, currentSection, currentDate);
+        if(stored) { currentAttendanceMap = {...stored}; for(let s of currentStudents) if(!currentAttendanceMap[s.rollNo.toString()]) currentAttendanceMap[s.rollNo.toString()]='absent'; }
+        else { currentAttendanceMap = {}; for(let s of currentStudents) currentAttendanceMap[s.rollNo.toString()]='absent'; }
+        renderTable();
+    }
+
+    async function saveCurrentAttendance() {
+        if(!currentStudents.length) { alert('No students'); return; }
+        for(let s of currentStudents) if(!currentAttendanceMap[s.rollNo.toString()]) currentAttendanceMap[s.rollNo.toString()]='absent';
+        const success = await saveAttendanceRecord(currentClass, currentSection, currentDate, currentAttendanceMap);
+        if(success) {
+            alert(`✅ Saved to cloud & local: ${currentStudents.length} records for Class ${currentClass}-${currentSection} on ${currentDate}`);
+            await loadFullAttendance();
+        } else {
+            alert("❌ Cloud save failed. Data saved to browser only.");
+        }
+    }
+
+    function setAllPresent() { if(currentStudents.length) { for(let s of currentStudents) currentAttendanceMap[s.rollNo.toString()]='present'; renderTable(); } }
+    function setAllAbsent() { if(currentStudents.length) { for(let s of currentStudents) currentAttendanceMap[s.rollNo.toString()]='absent'; renderTable(); } }
+
+    function downloadCSV(filename, rows) {
+        const csvRows = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+        const blob = new Blob(["\uFEFF" + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; link.click(); URL.revokeObjectURL(link.href);
+    }
+
+    function exportCurrentClass() {
+        if(!currentStudents.length) { alert('Load a class first'); return; }
+        const rows = [['Roll No', 'Student Name', 'Attendance Status', 'Class', 'Section', 'Date']];
+        for(let s of currentStudents) {
+            let status = currentAttendanceMap[s.rollNo.toString()] || 'absent';
+            rows.push([s.rollNo, s.name, status.toUpperCase(), currentClass, currentSection, currentDate]);
+        }
+        downloadCSV(`attendance_Class${currentClass}_${currentSection}_${currentDate}.csv`, rows);
+        alert(`Exported ${currentStudents.length} records`);
+    }
+
+    async function exportAllRecords() {
+        let allRows = [];
+        let totalExported = 0;
+        const cloudDocs = await window.exportAllFromCloud();
+        const cloudDocMap = new Map();
+        
+        for(let docData of cloudDocs) {
+            const { class: cls, section: sec, date, records } = docData;
+            const key = `${cls}_${sec}_${date}`;
+            cloudDocMap.set(key, true);
+            let students = getStudentList(parseInt(cls), sec);
+            if(!students.length) continue;
+            for(let s of students) {
+                let status = records[s.rollNo.toString()] || 'absent';
+                allRows.push([s.rollNo, s.name, status.toUpperCase(), cls, sec, date]);
+                totalExported++;
+            }
+        }
+        
+        const classes = ['5','6','7','8','9','10'], sections = ['A','B'];
+        for(let cls of classes) {
+            for(let sec of sections) {
+                for(let i=0; i<localStorage.length; i++) {
+                    let key = localStorage.key(i);
+                    if(key && key.startsWith(`att_${cls}_${sec}_`)) {
+                        let date = key.replace(`att_${cls}_${sec}_`, '');
+                        let cloudKey = `${cls}_${sec}_${date}`;
+                        if(cloudDocMap.has(cloudKey)) continue;
+                        let localData = JSON.parse(localStorage.getItem(key));
+                        let students = getStudentList(parseInt(cls), sec);
+                        for(let s of students) {
+                            let status = localData.records[s.rollNo.toString()] || 'absent';
+                            allRows.push([s.rollNo, s.name, status.toUpperCase(), cls, sec, date]);
+                            totalExported++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if(allRows.length === 0) { alert('No records found in cloud or local storage'); return; }
+        const headers = [['Roll No', 'Student Name', 'Attendance Status', 'Class', 'Section', 'Date']];
+        downloadCSV(`ALL_ATTENDANCE_RECORDS_${getTodayDate()}.csv`, [...headers, ...allRows]);
+        alert(`Exported ${totalExported} total attendance records (cloud + local backup)`);
+    }
+
+    loadBtn.addEventListener('click', async (e) => { e.preventDefault(); await loadFullAttendance(); });
+    saveBtn.addEventListener('click', async (e) => { e.preventDefault(); await saveCurrentAttendance(); });
+    markAllPresentBtn.addEventListener('click', setAllPresent);
+    markAllAbsentBtn.addEventListener('click', setAllAbsent);
+    exportCurrentBtn.addEventListener('click', exportCurrentClass);
+    exportAllBtn.addEventListener('click', async (e) => { e.preventDefault(); await exportAllRecords(); });
+    
+    if(!attendanceDateInput.value) attendanceDateInput.value = getTodayDate();
+    classSelect.value = "5"; sectionSelect.value = "A";
+    loadFullAttendance();
+</script>
+</body>
+</html>
